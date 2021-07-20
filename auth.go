@@ -18,10 +18,12 @@ import (
 )
 
 var (
-	connectTimeOut   = time.Duration(10 * time.Second)
-	readWriteTimeout = time.Duration(20 * time.Second)
+	connectTimeOut   = time.Duration(60 * time.Second)
+	readWriteTimeout = time.Duration(120 * time.Second)
 	userAgent        = "AtScale"
 )
+
+var Bod []byte
 
 type myjar struct {
 	jar map[string][]*http.Cookie
@@ -39,7 +41,7 @@ const (
 	nc = "00000001"
 )
 
-func Auth(username string, password string, uri string) (bool, error) {
+func Auth(username string, password string, uri string) (bool, error, []byte) {
 	client := DefaultTimeoutClient()
 	jar := &myjar{}
 	jar.jar = make(map[string][]*http.Cookie)
@@ -49,7 +51,7 @@ func Auth(username string, password string, uri string) (bool, error) {
 	var err error
 	req, err = http.NewRequest("GET", uri, nil)
 	if err != nil {
-		return false, err
+		return false, err, nil
 	}
 	headers := http.Header{
 		"User-Agent":      []string{userAgent},
@@ -62,7 +64,7 @@ func Auth(username string, password string, uri string) (bool, error) {
 
 	resp, err = client.Do(req)
 	if err != nil {
-		return false, err
+		return false, err, nil
 	}
 	// you HAVE to read the whole body and then close it to reuse the http connection
 	// otherwise it *could* fail in certain environments (behind proxy for instance)
@@ -108,13 +110,18 @@ func Auth(username string, password string, uri string) (bool, error) {
 		req.Header = headers
 		resp, err = client.Do(req)
 		if err != nil {
-			return false, err
+			return false, err, nil
 		}
+		Bod, err = ioutil.ReadAll(resp.Body)
+		if err != nil {
+			Bod = nil
+		}
+
 		defer resp.Body.Close()
 	} else {
-		return false, fmt.Errorf("response status code should have been 401, it was %v", resp.StatusCode)
+		return false, fmt.Errorf("response status code should have been 401, it was %v", resp.StatusCode), nil
 	}
-	return resp.StatusCode == http.StatusOK, err
+	return resp.StatusCode == http.StatusOK, err, Bod
 }
 
 /*
